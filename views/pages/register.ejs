@@ -1,47 +1,53 @@
 <%- include('../partials/header') %>
 
-<section class="auth-section">
-  <div class="auth-container">
-    <h1 class="auth-title">Register</h1>
-    <form id="register-form" class="auth-form">
-      <div class="form-message" id="register-message" style="display: none;"></div>
-      
-      <div class="form-group">
-        <label for="firstName">First Name</label>
-        <input type="text" id="firstName" name="firstName">
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      <div class="card shadow">
+        <div class="card-body p-4">
+          <h1 class="card-title text-center mb-4">Register</h1>
+          <form id="register-form">
+            <div class="alert" id="register-message" role="alert" style="display: none;"></div>
+            
+            <div class="mb-3">
+              <label for="firstName" class="form-label">First Name</label>
+              <input type="text" class="form-control" id="firstName" name="firstName">
+            </div>
+            
+            <div class="mb-3">
+              <label for="lastName" class="form-label">Last Name</label>
+              <input type="text" class="form-control" id="lastName" name="lastName">
+            </div>
+            
+            <div class="mb-3">
+              <label for="email" class="form-label">Email</label>
+              <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            
+            <div class="mb-3">
+              <label for="accessCode" class="form-label">Access Code</label>
+              <input type="text" class="form-control" id="accessCode" name="accessCode" value="<%= accessCode %>" required>
+              <div class="form-text">You need an access code from a tutor to register.</div>
+            </div>
+            
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">Register</button>
+            </div>
+            
+            <div class="text-center mt-3">
+              <p class="mb-0">Already have an account? <a href="/login" class="text-decoration-none">Login</a></p>
+            </div>
+          </form>
+        </div>
       </div>
-      
-      <div class="form-group">
-        <label for="lastName">Last Name</label>
-        <input type="text" id="lastName" name="lastName">
-      </div>
-      
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required>
-      </div>
-      
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required>
-      </div>
-      
-      <div class="form-group">
-        <label for="accessCode">Access Code</label>
-        <input type="text" id="accessCode" name="accessCode" value="<%= accessCode %>" required>
-        <small>You need an access code from a tutor to register.</small>
-      </div>
-      
-      <div class="form-group">
-        <button type="submit" class="btn btn-primary btn-block">Register</button>
-      </div>
-      
-      <div class="auth-links">
-        <p>Already have an account? <a href="/login">Login</a></p>
-      </div>
-    </form>
+    </div>
   </div>
-</section>
+</div>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -78,7 +84,7 @@
         
         // Show success message
         messageElement.textContent = 'Registration successful! Redirecting...';
-        messageElement.className = 'form-message success';
+        messageElement.className = 'alert alert-success';
         messageElement.style.display = 'block';
         
         if (data.user.verified) {
@@ -92,7 +98,7 @@
       } catch (error) {
         // Show error message
         messageElement.textContent = error.message;
-        messageElement.className = 'form-message error';
+        messageElement.className = 'alert alert-danger';
         messageElement.style.display = 'block';
       }
     });

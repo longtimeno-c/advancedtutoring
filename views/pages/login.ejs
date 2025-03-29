@@ -1,31 +1,37 @@
 <%- include('../partials/header') %>
 
-<section class="auth-section">
-  <div class="auth-container">
-    <h1 class="auth-title">Login</h1>
-    <form id="login-form" class="auth-form">
-      <div class="form-message" id="login-message" style="display: none;"></div>
-      
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required>
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      <div class="card shadow">
+        <div class="card-body p-4">
+          <h1 class="card-title text-center mb-4">Login</h1>
+          <form id="login-form">
+            <div class="alert" id="login-message" role="alert" style="display: none;"></div>
+            
+            <div class="mb-3">
+              <label for="email" class="form-label">Email</label>
+              <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">Login</button>
+            </div>
+            
+            <div class="text-center mt-3">
+              <p class="mb-0">Don't have an account? <a href="/register" class="text-decoration-none">Register</a></p>
+            </div>
+          </form>
+        </div>
       </div>
-      
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required>
-      </div>
-      
-      <div class="form-group">
-        <button type="submit" class="btn btn-primary btn-block">Login</button>
-      </div>
-      
-      <div class="auth-links">
-        <p>Don't have an account? <a href="/register">Register</a></p>
-      </div>
-    </form>
+    </div>
   </div>
-</section>
+</div>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -59,7 +65,7 @@
         
         // Show success message
         messageElement.textContent = 'Login successful! Redirecting...';
-        messageElement.className = 'form-message success';
+        messageElement.className = 'alert alert-success';
         messageElement.style.display = 'block';
         
         // Redirect to dashboard after a short delay
@@ -70,7 +76,7 @@
       } catch (error) {
         // Show error message
         messageElement.textContent = error.message;
-        messageElement.className = 'form-message error';
+        messageElement.className = 'alert alert-danger';
         messageElement.style.display = 'block';
       }
     });

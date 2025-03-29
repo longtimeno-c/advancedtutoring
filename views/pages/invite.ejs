@@ -1,48 +1,59 @@
 <%- include('../partials/header') %>
 
-<section class="invite-section">
-  <div class="container">
-    <div class="auth-container">
-      <h1 class="auth-title">Invite a Pupil</h1>
-      
-      <form id="invite-form" class="auth-form">
-        <div class="form-message" id="invite-message" style="display: none;"></div>
-        
-        <div class="form-group">
-          <label for="email">Pupil's Email</label>
-          <input type="email" id="email" name="email" required>
-        </div>
-        
-        <div class="form-group">
-          <button type="submit" class="btn btn-primary btn-block">Generate Access Code & Send Invitation</button>
-        </div>
-      </form>
-      
-      <div id="invite-result" style="display: none;">
-        <div class="invite-success">
-          <h3>Invitation Created Successfully!</h3>
-          <div class="access-code-display">
-            <p>Access Code: <span id="access-code" class="code"></span></p>
-            <button id="copy-code" class="btn btn-secondary">Copy Code</button>
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <div class="card shadow">
+        <div class="card-body p-4">
+          <h1 class="card-title text-center mb-4">Invite a Pupil</h1>
+          
+          <form id="invite-form">
+            <div class="alert" id="invite-message" role="alert" style="display: none;"></div>
+            
+            <div class="mb-3">
+              <label for="email" class="form-label">Pupil's Email</label>
+              <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">Generate Access Code & Send Invitation</button>
+            </div>
+          </form>
+          
+          <div id="invite-result" class="mt-4" style="display: none;">
+            <div class="alert alert-success">
+              <h4 class="alert-heading mb-3">Invitation Created Successfully!</h4>
+              <div class="bg-light p-3 rounded mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <label class="text-muted mb-1">Access Code:</label>
+                    <div id="access-code" class="h5 mb-0 font-monospace"></div>
+                  </div>
+                  <button id="copy-code" class="btn btn-outline-primary">
+                    <i class="fas fa-copy me-2"></i>Copy Code
+                  </button>
+                </div>
+              </div>
+              <p class="mb-1">The access code has been sent to the pupil's email address.</p>
+              <p class="mb-0 small text-muted">If email sending is disabled in the system, please share this code with your pupil manually.</p>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-3">
+              <a href="/dashboard" class="btn btn-link text-decoration-none">Return to Dashboard</a>
+              <button id="invite-another" class="btn btn-link text-decoration-none">Invite Another Pupil</button>
+            </div>
           </div>
-          <p class="invite-note">The access code has been sent to the pupil's email address.</p>
-          <p class="invite-note">If email sending is disabled in the system, please share this code with your pupil manually.</p>
+          
+          <div id="past-invites" class="mt-5">
+            <h3 class="h4 mb-4 pb-2 border-bottom">Your Generated Access Codes</h3>
+            <div class="text-center text-muted py-3" id="codes-loading">Loading...</div>
+            <div id="access-codes-list"></div>
+          </div>
         </div>
-        
-        <div class="auth-links">
-          <a href="/dashboard" class="btn btn-link">Return to Dashboard</a>
-          <button id="invite-another" class="btn btn-link">Invite Another Pupil</button>
-        </div>
-      </div>
-      
-      <div id="past-invites">
-        <h3>Your Generated Access Codes</h3>
-        <div class="loading" id="codes-loading">Loading...</div>
-        <div id="access-codes-list"></div>
       </div>
     </div>
   </div>
-</section>
+</div>
 
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
@@ -106,7 +117,7 @@
       } catch (error) {
         // Show error message
         messageElement.textContent = error.message;
-        messageElement.className = 'form-message error';
+        messageElement.className = 'alert alert-danger';
         messageElement.style.display = 'block';
       }
     });
@@ -115,9 +126,9 @@
     copyButton.addEventListener('click', () => {
       const codeText = accessCodeElement.textContent;
       navigator.clipboard.writeText(codeText).then(() => {
-        copyButton.textContent = 'Copied!';
+        copyButton.innerHTML = '<i class="fas fa-check me-2"></i>Copied!';
         setTimeout(() => {
-          copyButton.textContent = 'Copy Code';
+          copyButton.innerHTML = '<i class="fas fa-copy me-2"></i>Copy Code';
         }, 2000);
       });
     });
@@ -153,7 +164,7 @@
         codesLoading.style.display = 'none';
         
         if (accessCodes.length === 0) {
-          codesListElement.innerHTML = '<p>You have not created any access codes yet.</p>';
+          codesListElement.innerHTML = '<p class="text-muted text-center">You have not created any access codes yet.</p>';
           return;
         }
         
@@ -162,130 +173,42 @@
         
         // Display the codes in a table
         codesListElement.innerHTML = `
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Role</th>
-                <th>Created</th>
-                <th>Status</th>
-                <th>Expires</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${accessCodes.map(code => `
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead class="table-light">
                 <tr>
-                  <td><code>${code.code}</code></td>
-                  <td>${code.targetRole}</td>
-                  <td>${new Date(code.createdAt).toLocaleDateString()}</td>
-                  <td>${code.used ? 'Used' : 'Available'}</td>
-                  <td>${new Date(code.expiresAt).toLocaleDateString()}</td>
+                  <th>Code</th>
+                  <th>Role</th>
+                  <th>Created</th>
+                  <th>Status</th>
+                  <th>Expires</th>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${accessCodes.map(code => `
+                  <tr>
+                    <td><code class="bg-light px-2 py-1 rounded">${code.code}</code></td>
+                    <td>${code.targetRole}</td>
+                    <td>${new Date(code.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      <span class="badge ${code.used ? 'bg-secondary' : 'bg-success'}">
+                        ${code.used ? 'Used' : 'Available'}
+                      </span>
+                    </td>
+                    <td>${new Date(code.expiresAt).toLocaleDateString()}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
         `;
       } catch (error) {
         console.error('Load access codes error:', error);
         codesLoading.style.display = 'none';
-        codesListElement.innerHTML = '<p class="error">Failed to load access codes.</p>';
+        codesListElement.innerHTML = '<div class="alert alert-danger">Failed to load access codes.</div>';
       }
     }
   });
 </script>
-
-<style>
-  .invite-section {
-    padding: 2rem 0;
-  }
-  
-  .invite-success {
-    background-color: #d4edda;
-    border: 1px solid #c3e6cb;
-    color: #155724;
-    padding: 1.5rem;
-    border-radius: var(--border-radius);
-    margin-bottom: 1.5rem;
-  }
-  
-  .access-code-display {
-    background-color: #f8f9fa;
-    padding: 1rem;
-    border-radius: var(--border-radius);
-    margin: 1rem 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  
-  .code {
-    font-family: monospace;
-    font-size: 1.5rem;
-    font-weight: bold;
-    letter-spacing: 2px;
-  }
-  
-  .invite-note {
-    font-size: 0.9rem;
-    margin-top: 0.5rem;
-  }
-  
-  #past-invites {
-    margin-top: 2.5rem;
-  }
-  
-  #past-invites h3 {
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--border-color);
-  }
-  
-  .loading {
-    text-align: center;
-    padding: 1rem;
-    color: #6c757d;
-  }
-  
-  .data-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-  }
-  
-  .data-table th,
-  .data-table td {
-    padding: 0.75rem;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
-  }
-  
-  .data-table th {
-    font-weight: 600;
-    background-color: var(--light-bg);
-  }
-  
-  code {
-    background-color: #f8f9fa;
-    padding: 0.2rem 0.4rem;
-    border-radius: 0.2rem;
-    font-family: monospace;
-  }
-  
-  .btn-link {
-    background: none;
-    border: none;
-    color: var(--primary-color);
-    text-decoration: underline;
-    cursor: pointer;
-    padding: 0;
-    font-size: 1rem;
-  }
-  
-  .auth-links {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 1.5rem;
-  }
-</style>
 
 <%- include('../partials/footer') %> 

@@ -115,14 +115,15 @@
       <div class="dashboard-stats">
         <div class="stat-card">
           <h3>Unread Messages</h3>
-          <p id="pupil-unread-messages">0</p>
+          <p id="pupil-unread-messages" class="unread-count">0</p>
         </div>
       </div>
       
-      <div class="dashboard-table">
-        <h3>Recent Messages</h3>
-        <div id="pupil-messages-list">
-          <!-- Messages will be loaded here -->
+      <!-- Message button for quick access -->
+      <div class="dashboard-card" id="message-tutor-card" style="display: none;">
+        <div class="message-tutor-container">
+          <p>You have unread messages from your tutor.</p>
+          <a href="#" id="message-tutor-link" class="btn btn-primary">View Messages</a>
         </div>
       </div>
     </div>
@@ -279,10 +280,12 @@
       }
       
       const messagesData = await messagesResponse.json();
+      const unreadByUser = messagesData.conversations || [];
       
       // Update stats
       document.getElementById('tutor-total-pupils').textContent = pupils.length;
-      document.getElementById('tutor-unread-messages').textContent = messagesData.total || 0;
+      const unreadCount = messagesData.total || 0;
+      document.getElementById('tutor-unread-messages').textContent = unreadCount;
       
       // Show pupils list
       const pupilsList = document.getElementById('tutor-pupils-list');
@@ -300,16 +303,25 @@
               </tr>
             </thead>
             <tbody>
-              ${pupils.map(pupil => `
-                <tr>
-                  <td>${pupil.firstName} ${pupil.lastName}</td>
+              ${pupils.map(pupil => {
+                // Find unread count for this pupil
+                const pupilUnread = unreadByUser.find(u => u.userId === pupil.id)?.count || 0;
+                const unreadBadge = pupilUnread > 0 ? 
+                  `<span class="table-unread-badge" title="${pupilUnread} unread message${pupilUnread > 1 ? 's' : ''}">${pupilUnread}</span>` : '';
+                
+                return `
+                <tr class="${pupilUnread > 0 ? 'has-unread' : ''}">
+                  <td>${pupil.firstName} ${pupil.lastName} ${unreadBadge}</td>
                   <td>${pupil.email}</td>
                   <td>
                     <a href="/tutor/pupils/${pupil.id}" class="btn-small">View</a>
-                    <a href="/messages/conversation/${pupil.id}" class="btn-small">Message</a>
+                    <a href="/messages/conversation/${pupil.id}" class="btn-small message-btn ${pupilUnread > 0 ? 'has-unread-btn' : ''}">
+                      Message
+                      ${pupilUnread > 0 ? `<span class="btn-badge">${pupilUnread}</span>` : ''}
+                    </a>
                   </td>
                 </tr>
-              `).join('')}
+              `}).join('')}
             </tbody>
           </table>
         `;
@@ -353,51 +365,28 @@
 
         // Fetch messages only if we have a tutor
         try {
-          const [messagesResponse, conversationResponse] = await Promise.all([
-            fetch('/api/messages/unread', {
-              headers: { 'Authorization': `Bearer ${token}` }
-            }),
-            fetch(`/api/messages/conversation/${tutor.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            })
-          ]);
+          const messagesResponse = await fetch('/api/messages/unread', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
 
           // Handle unread messages count
           if (messagesResponse.ok) {
             const messagesData = await messagesResponse.json();
-            document.getElementById('pupil-unread-messages').textContent = messagesData.total || 0;
-          }
-
-          // Handle conversation messages
-          if (conversationResponse.ok) {
-            const conversationData = await conversationResponse.json();
-            const messages = conversationData.messages || [];
-            const recentMessages = messages.slice(-5).reverse(); // Get last 5 messages
+            const unreadCount = messagesData.total || 0;
+            const unreadElement = document.getElementById('pupil-unread-messages');
+            unreadElement.textContent = unreadCount;
+            unreadElement.setAttribute('data-count', unreadCount);
             
-            const messagesList = document.getElementById('pupil-messages-list');
-            if (recentMessages.length === 0) {
-              messagesList.innerHTML = '<p>No messages yet. Start a conversation with your tutor.</p>';
-            } else {
-              messagesList.innerHTML = `
-                <div class="message-list">
-                  ${recentMessages.map(message => `
-                    <div class="message ${message.senderId === tutor.id ? 'received' : 'sent'}">
-                      <div class="message-content">${message.content}</div>
-                      <div class="message-time">${new Date(message.createdAt).toLocaleString()}</div>
-                    </div>
-                  `).join('')}
-                </div>
-                <div class="view-all">
-                  <a href="/messages/conversation/${tutor.id}" class="btn-link">View all messages</a>
-                </div>
-              `;
+            // Show message button if there are unread messages
+            const messageTutorCard = document.getElementById('message-tutor-card');
+            const messageTutorLink = document.getElementById('message-tutor-link');
+            if (unreadCount > 0) {
+              messageTutorCard.style.display = 'block';
+              messageTutorLink.href = `/messages/conversation/${tutor.id}`;
             }
-          } else {
-            document.getElementById('pupil-messages-list').innerHTML = '<p>Unable to load messages. Please try again later.</p>';
           }
         } catch (error) {
           console.error('Messages error:', error);
-          document.getElementById('pupil-messages-list').innerHTML = '<p>Unable to load messages. Please try again later.</p>';
         }
       } else {
         // No tutor assigned or error
@@ -406,7 +395,6 @@
         document.getElementById('my-tutor-email').textContent = '';
         document.getElementById('my-tutor-bio').innerHTML = `<p class="text-muted">${message}</p>`;
         document.getElementById('my-tutor-interests').textContent = 'N/A';
-        document.getElementById('pupil-messages-list').innerHTML = `<p>${message}</p>`;
         document.getElementById('pupil-unread-messages').textContent = '0';
       }
     } catch (error) {
@@ -416,7 +404,6 @@
       document.getElementById('my-tutor-email').textContent = '';
       document.getElementById('my-tutor-bio').innerHTML = '<p class="text-muted">Please try refreshing the page</p>';
       document.getElementById('my-tutor-interests').textContent = '';
-      document.getElementById('pupil-messages-list').innerHTML = '<p>Unable to load messages. Please try refreshing the page.</p>';
       document.getElementById('pupil-unread-messages').textContent = '0';
     }
   }
@@ -468,6 +455,50 @@
     margin: 0;
   }
   
+  .unread-count {
+    position: relative;
+    display: inline-block;
+  }
+  
+  .unread-count[data-count]:not([data-count="0"])::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -10px;
+    right: -15px;
+    font-size: 0.9rem;
+    background-color: var(--accent-color);
+    color: white;
+    border-radius: 50%;
+    padding: 0.25rem 0.5rem;
+    min-width: 15px;
+    height: 15px;
+    line-height: 15px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: scale(1);
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    
+    70% {
+      transform: scale(1);
+      box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    
+    100% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+  }
+  
   .dashboard-table {
     background-color: var(--bg-color);
     border-radius: var(--border-radius);
@@ -486,11 +517,38 @@
     padding: 0.75rem;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
+    position: relative;
   }
   
   .data-table th {
     font-weight: 600;
     background-color: var(--light-bg);
+  }
+  
+  .data-table tr.has-unread {
+    background-color: rgba(52, 152, 219, 0.08);
+    position: relative;
+  }
+  
+  .data-table tr.has-unread td:first-child {
+    border-left: 3px solid var(--accent-color);
+  }
+  
+  .table-unread-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    background-color: var(--accent-color);
+    color: white;
+    border-radius: 50%;
+    margin-left: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    animation: pulse 2s infinite;
   }
   
   .btn-small {
@@ -502,6 +560,28 @@
     border-radius: var(--border-radius);
     text-decoration: none;
     margin-right: 0.5rem;
+    position: relative;
+  }
+  
+  .message-btn {
+    padding-right: 0.6rem;
+  }
+  
+  .btn-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    font-size: 0.7rem;
+    background-color: var(--accent-color);
+    color: white;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   }
   
   .loading-container {
@@ -608,6 +688,29 @@
   .detail-label {
     font-weight: 600;
     min-width: 100px;
+  }
+  
+  .message-tutor-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem;
+  }
+  
+  .message-tutor-container p {
+    margin: 0;
+    font-weight: 500;
+  }
+  
+  .has-unread-btn {
+    background-color: var(--accent-color);
+    font-weight: 600;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transform: scale(1.05);
+  }
+  
+  .has-unread-btn:hover {
+    background-color: #c0392b;
   }
 </style>
 

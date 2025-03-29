@@ -218,6 +218,22 @@
     font-size: 0.8rem;
     min-width: 20px;
     text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  
+  .conversation-item.unread .conversation-header h3::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: var(--primary-color);
+    border-radius: 50%;
+    margin-left: 8px;
+    vertical-align: middle;
   }
   
   .no-messages {

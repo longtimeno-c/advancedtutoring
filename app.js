@@ -12,6 +12,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const noteRoutes = require('./routes/noteRoutes');
+const eventRoutes = require('./routes/eventRoutes');
 
 // Initialize Express app
 const app = express();
@@ -49,6 +50,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/events', eventRoutes);
 
 // Frontend routes
 app.get('/', (req, res) => {
@@ -98,6 +100,39 @@ app.get('/dashboard', (req, res) => {
     res.render('pages/dashboard', { title: 'Dashboard', path: req.path });
   } catch (error) {
     // If token is invalid, clear it and redirect to login
+    res.clearCookie('token');
+    res.redirect('/login');
+  }
+});
+
+// Calendar routes
+app.get('/calendar', (req, res) => {
+  // Check if user is authenticated
+  const token = req.cookies.token;
+  if (!token) {
+    return res.redirect('/login');
+  }
+  
+  try {
+    jwt.verify(token, config.jwtSecret);
+    res.render('pages/calendar', { title: 'Calendar', path: req.path });
+  } catch (error) {
+    res.clearCookie('token');
+    res.redirect('/login');
+  }
+});
+
+app.get('/event/:id', (req, res) => {
+  // Check if user is authenticated
+  const token = req.cookies.token;
+  if (!token) {
+    return res.redirect('/login');
+  }
+  
+  try {
+    jwt.verify(token, config.jwtSecret);
+    res.render('pages/event-details', { title: 'Event Details', path: '/calendar', eventId: req.params.id });
+  } catch (error) {
     res.clearCookie('token');
     res.redirect('/login');
   }

@@ -1,0 +1,583 @@
+<%- include('../partials/header') %>
+
+<section class="event-details-section">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Event Details</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+    
+    <!-- Loading state -->
+    <div id="event-loading" class="loading-container">
+      <p>Loading event details...</p>
+    </div>
+    
+    <!-- Error state -->
+    <div id="event-error" class="error-container" style="display: none;">
+      <p>Error loading event details. The event may have been deleted or you may not have permission to view it.</p>
+      <a href="/calendar" class="btn btn-primary mt-3">Return to Calendar</a>
+    </div>
+    
+    <div id="event-details-container" class="card" style="display: none;">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h1 id="event-title" class="h3 mb-0"></h1>
+        <div id="event-actions">
+          <a href="#" id="export-event-link" class="btn btn-sm btn-secondary">
+            <i class="fas fa-calendar-alt"></i> Add to Calendar
+          </a>
+          <button id="edit-event-btn" class="btn btn-sm btn-primary" style="display: none;">
+            <i class="fas fa-edit"></i> Edit
+          </button>
+          <button id="delete-event-btn" class="btn btn-sm btn-danger" style="display: none;">
+            <i class="fas fa-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="event-info">
+              <div class="info-item">
+                <i class="fas fa-clock text-muted"></i>
+                <span id="event-time"></span>
+              </div>
+              <div class="info-item" id="event-location-container">
+                <i class="fas fa-map-marker-alt text-muted"></i>
+                <span id="event-location"></span>
+              </div>
+              <div class="info-item" id="event-organizer-container">
+                <i class="fas fa-user text-muted"></i>
+                <span id="event-organizer"></span>
+              </div>
+            </div>
+            
+            <div class="event-description mt-4">
+              <h3>Description</h3>
+              <div id="event-description" class="p-3 bg-light rounded"></div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div id="participants-section" class="card mb-3">
+              <div class="card-header">
+                <h3 class="h5 mb-0">Participants</h3>
+              </div>
+              <div class="card-body">
+                <ul id="participants-list" class="list-group list-group-flush">
+                  <!-- Participants will be loaded here -->
+                  <li class="list-group-item text-center">Loading participants...</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Edit Event Modal -->
+<div class="modal fade" id="edit-event-modal" tabindex="-1" aria-labelledby="edit-event-modal-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="edit-event-modal-label">Edit Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="edit-event-form">
+          <input type="hidden" id="edit-event-id">
+          <div class="mb-3">
+            <label for="edit-event-title" class="form-label">Title</label>
+            <input type="text" class="form-control" id="edit-event-title" required>
+          </div>
+          <div class="mb-3">
+            <label for="edit-event-description" class="form-label">Description</label>
+            <textarea class="form-control" id="edit-event-description" rows="3"></textarea>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="edit-event-start" class="form-label">Start Date & Time</label>
+              <input type="datetime-local" class="form-control" id="edit-event-start" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="edit-event-end" class="form-label">End Date & Time</label>
+              <input type="datetime-local" class="form-control" id="edit-event-end" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="edit-event-location" class="form-label">Location</label>
+            <input type="text" class="form-control" id="edit-event-location">
+          </div>
+          <div class="mb-3">
+            <label for="edit-event-color" class="form-label">Color</label>
+            <input type="color" class="form-control form-control-color" id="edit-event-color" value="#4285F4">
+          </div>
+          <div class="mb-3" id="edit-student-selection-container">
+            <label class="form-label">Select Students</label>
+            <div id="edit-student-checkboxes" class="student-checkboxes">
+              <!-- Student checkboxes will be loaded here -->
+              <div class="alert alert-info">Loading students...</div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="save-edit-event-btn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    if (!token || !user) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    // Get event ID from URL
+    const eventId = '<%= eventId %>';
+    
+    // Show loading state
+    const loadingEl = document.getElementById('event-loading');
+    const errorEl = document.getElementById('event-error');
+    const eventContainer = document.getElementById('event-details-container');
+    
+    try {
+      // Fetch event details
+      const response = await fetch(`/api/events/${eventId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load event details');
+      }
+      
+      const data = await response.json();
+      const event = data.event;
+      
+      // Set event details
+      document.getElementById('event-title').textContent = event.title;
+      
+      // Format date/time
+      const startDate = new Date(event.startTime);
+      const endDate = new Date(event.endTime);
+      const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      const timeOptions = { hour: '2-digit', minute: '2-digit' };
+      
+      let timeString = startDate.toLocaleDateString(undefined, dateOptions) + ' at ' + 
+                       startDate.toLocaleTimeString(undefined, timeOptions);
+      
+      if (endDate) {
+        timeString += ' to ' + endDate.toLocaleTimeString(undefined, timeOptions);
+      }
+      
+      document.getElementById('event-time').textContent = timeString;
+      
+      // Set location
+      const locationContainer = document.getElementById('event-location-container');
+      if (event.location) {
+        document.getElementById('event-location').textContent = event.location;
+        locationContainer.style.display = 'flex';
+      } else {
+        locationContainer.style.display = 'none';
+      }
+      
+      // Set description
+      const descriptionEl = document.getElementById('event-description');
+      if (event.description) {
+        descriptionEl.textContent = event.description;
+      } else {
+        descriptionEl.textContent = 'No description provided.';
+      }
+      
+      // Set organizer (tutor)
+      const tutorResponse = await fetch(`/api/users/${event.tutorId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (tutorResponse.ok) {
+        const tutorData = await tutorResponse.json();
+        const tutor = tutorData.user;
+        document.getElementById('event-organizer').textContent = `${tutor.firstName} ${tutor.lastName}`;
+      } else {
+        document.getElementById('event-organizer').textContent = 'Unknown Tutor';
+      }
+      
+      // Set export link
+      document.getElementById('export-event-link').href = `/api/events/${eventId}/ical`;
+      
+      // Show edit/delete buttons for tutors
+      if (user.role === 'tutor' || user.role === 'admin') {
+        // Only show edit/delete if user is the creator
+        if (event.tutorId === user.id || user.role === 'admin') {
+          document.getElementById('edit-event-btn').style.display = 'inline-block';
+          document.getElementById('delete-event-btn').style.display = 'inline-block';
+        }
+      }
+      
+      // Load participants
+      await loadParticipants(event);
+      
+      // Setup event handlers
+      document.getElementById('edit-event-btn').addEventListener('click', () => {
+        initializeEditForm(event);
+      });
+      
+      document.getElementById('delete-event-btn').addEventListener('click', () => {
+        deleteEvent(event.id);
+      });
+      
+      document.getElementById('save-edit-event-btn').addEventListener('click', () => {
+        saveEditedEvent(event.id);
+      });
+      
+      // Hide loading and show event details
+      loadingEl.style.display = 'none';
+      eventContainer.style.display = 'block';
+    } catch (error) {
+      console.error('Event details error:', error);
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+    }
+  });
+  
+  // Load participants for the event
+  async function loadParticipants(event) {
+    const participantsList = document.getElementById('participants-list');
+    participantsList.innerHTML = '';
+    
+    // If there are no students
+    if (!event.studentIds || event.studentIds.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'list-group-item text-center';
+      li.textContent = 'No participants';
+      participantsList.appendChild(li);
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Fetch each student's details
+      const participants = await Promise.all(
+        event.studentIds.map(async (studentId) => {
+          const response = await fetch(`/api/users/${studentId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            return data.user;
+          }
+          
+          return null;
+        })
+      );
+      
+      // Filter out any failed fetches
+      const validParticipants = participants.filter(p => p !== null);
+      
+      if (validParticipants.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'list-group-item text-center';
+        li.textContent = 'No participants';
+        participantsList.appendChild(li);
+        return;
+      }
+      
+      // Add each participant to the list
+      validParticipants.forEach(participant => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex align-items-center';
+        
+        // Create avatar
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar me-3';
+        
+        if (participant.profilePicture) {
+          const img = document.createElement('img');
+          img.src = participant.profilePicture;
+          img.alt = `${participant.firstName} ${participant.lastName}`;
+          img.className = 'rounded-circle';
+          img.width = 40;
+          img.height = 40;
+          avatar.appendChild(img);
+        } else {
+          const initials = document.createElement('div');
+          initials.className = 'avatar-initials rounded-circle d-flex align-items-center justify-content-center text-white';
+          initials.style.width = '40px';
+          initials.style.height = '40px';
+          initials.style.backgroundColor = getRandomColor(participant.id);
+          initials.textContent = `${participant.firstName.charAt(0)}${participant.lastName.charAt(0)}`;
+          avatar.appendChild(initials);
+        }
+        
+        // Create participant info
+        const info = document.createElement('div');
+        info.className = 'participant-info';
+        
+        const name = document.createElement('div');
+        name.className = 'participant-name';
+        name.textContent = `${participant.firstName} ${participant.lastName}`;
+        
+        const email = document.createElement('div');
+        email.className = 'participant-email text-muted small';
+        email.textContent = participant.email;
+        
+        info.appendChild(name);
+        info.appendChild(email);
+        
+        li.appendChild(avatar);
+        li.appendChild(info);
+        participantsList.appendChild(li);
+      });
+    } catch (error) {
+      console.error('Error loading participants:', error);
+      const li = document.createElement('li');
+      li.className = 'list-group-item text-center text-danger';
+      li.textContent = 'Error loading participants';
+      participantsList.appendChild(li);
+    }
+  }
+  
+  // Initialize edit form with event data
+  async function initializeEditForm(event) {
+    // Set form fields
+    document.getElementById('edit-event-id').value = event.id;
+    document.getElementById('edit-event-title').value = event.title;
+    document.getElementById('edit-event-description').value = event.description || '';
+    document.getElementById('edit-event-start').value = formatDateForInput(event.startTime);
+    document.getElementById('edit-event-end').value = formatDateForInput(event.endTime);
+    document.getElementById('edit-event-location').value = event.location || '';
+    document.getElementById('edit-event-color').value = event.color || '#4285F4';
+    
+    // Load students for selection
+    await loadStudentsForEdit(event.studentIds);
+    
+    // Show modal
+    const editModal = new bootstrap.Modal(document.getElementById('edit-event-modal'));
+    editModal.show();
+  }
+  
+  // Load students for the edit form
+  async function loadStudentsForEdit(selectedStudentIds) {
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch('/api/users/tutor/pupils', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load students');
+      }
+      
+      const data = await response.json();
+      const students = data.pupils || [];
+      
+      const studentCheckboxes = document.getElementById('edit-student-checkboxes');
+      studentCheckboxes.innerHTML = '';
+      
+      if (students.length === 0) {
+        studentCheckboxes.innerHTML = '<div class="alert alert-info">No students found. <a href="/tutor/invite">Invite students</a> to add them to your calendar.</div>';
+        return;
+      }
+      
+      students.forEach(student => {
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        
+        const input = document.createElement('input');
+        input.className = 'form-check-input';
+        input.type = 'checkbox';
+        input.name = 'edit-student';
+        input.value = student.id;
+        input.id = `edit-student-${student.id}`;
+        
+        // Check if this student is already selected
+        if (selectedStudentIds && selectedStudentIds.includes(student.id)) {
+          input.checked = true;
+        }
+        
+        const label = document.createElement('label');
+        label.className = 'form-check-label';
+        label.htmlFor = `edit-student-${student.id}`;
+        label.textContent = `${student.firstName} ${student.lastName}`;
+        
+        div.appendChild(input);
+        div.appendChild(label);
+        studentCheckboxes.appendChild(div);
+      });
+    } catch (error) {
+      console.error('Error loading students:', error);
+      const studentCheckboxes = document.getElementById('edit-student-checkboxes');
+      studentCheckboxes.innerHTML = '<div class="alert alert-danger">Failed to load students. Please try again later.</div>';
+    }
+  }
+  
+  // Save edited event
+  async function saveEditedEvent(eventId) {
+    const title = document.getElementById('edit-event-title').value;
+    const description = document.getElementById('edit-event-description').value;
+    const startTime = document.getElementById('edit-event-start').value;
+    const endTime = document.getElementById('edit-event-end').value;
+    const location = document.getElementById('edit-event-location').value;
+    const color = document.getElementById('edit-event-color').value;
+    
+    // Validation
+    if (!title || !startTime || !endTime) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    
+    // Get selected students
+    const studentIds = [];
+    const studentCheckboxes = document.querySelectorAll('input[name="edit-student"]:checked');
+    studentCheckboxes.forEach(checkbox => {
+      studentIds.push(checkbox.value);
+    });
+    
+    // Prepare data
+    const eventData = {
+      title,
+      description,
+      startTime,
+      endTime,
+      location,
+      color,
+      studentIds
+    };
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(eventData)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update event');
+      }
+      
+      // Close modal and refresh page
+      const editModal = bootstrap.Modal.getInstance(document.getElementById('edit-event-modal'));
+      editModal.hide();
+      
+      // Refresh page to show updated event
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating event:', error);
+      alert('Failed to update event. Please try again.');
+    }
+  }
+  
+  // Delete event
+  async function deleteEvent(eventId) {
+    if (!confirm('Are you sure you want to delete this event?')) {
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete event');
+      }
+      
+      // Redirect to calendar page
+      window.location.href = '/calendar';
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      alert('Failed to delete event. Please try again.');
+    }
+  }
+  
+  // Format date string for datetime-local input
+  function formatDateForInput(dateStr) {
+    const date = new Date(dateStr);
+    return date.toISOString().slice(0, 16);
+  }
+  
+  // Generate a random color based on a string
+  function getRandomColor(str) {
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    // Convert to hex color
+    let color = '#';
+    for (let i = 0; i < 3; i++) {
+      const value = (hash >> (i * 8)) & 0xFF;
+      color += ('00' + value.toString(16)).substr(-2);
+    }
+    
+    return color;
+  }
+</script>
+
+<style>
+  .event-info {
+    margin-bottom: 2rem;
+  }
+  
+  .info-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  
+  .info-item i {
+    margin-right: 0.75rem;
+    width: 18px;
+  }
+  
+  .avatar-initials {
+    font-weight: bold;
+  }
+  
+  .student-checkboxes {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+  }
+</style>
+
+<%- include('../partials/footer') %> 

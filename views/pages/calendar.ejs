@@ -1,0 +1,969 @@
+<%- include('../partials/header') %>
+
+<!-- Calendar Dependencies -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
+
+<section class="calendar-section">
+  <div class="container">
+    <div class="section-header">
+      <h1 class="section-title">Calendar</h1>
+      <div class="calendar-links">
+        <div class="dropdown">
+          <button class="btn btn-secondary dropdown-toggle" type="button" id="calendarDropdown"
+            data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-calendar-alt"></i> Export Calendar
+          </button>
+          <ul class="dropdown-menu" aria-labelledby="calendarDropdown">
+            <li><a class="dropdown-item" href="#" id="google-calendar-link">
+                <i class="fab fa-google"></i> Add to Google Calendar
+              </a></li>
+            <li><a class="dropdown-item" href="#" id="apple-calendar-link">
+                <i class="fab fa-apple"></i> Add to Apple Calendar
+              </a></li>
+            <li><a class="dropdown-item" href="#" id="outlook-calendar-link">
+                <i class="fab fa-microsoft"></i> Add to Outlook
+              </a></li>
+            <li>
+              <hr class="dropdown-divider">
+            </li>
+            <li><a class="dropdown-item" href="#" id="ical-download-link">
+                <i class="fas fa-download"></i> Download iCal File
+              </a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div id="calendar-loading" class="loading-container">
+      <p>Loading your calendar...</p>
+    </div>
+
+    <!-- Error state -->
+    <div id="calendar-error" class="error-container" style="display: none;">
+      <p>Error loading calendar. Please try again later.</p>
+    </div>
+
+    <div class="calendar-container" style="display: none;">
+      <!-- Tutor-only controls -->
+      <div id="tutor-controls" style="display: none;">
+        <button id="add-event-btn" class="btn btn-primary mb-3">
+          <i class="fas fa-plus"></i> Add New Event
+        </button>
+      </div>
+
+      <!-- Calendar View -->
+      <div id="calendar"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Event Modal -->
+<div class="modal fade" id="event-modal" tabindex="-1" aria-labelledby="event-modal-label" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="event-modal-label">Schedule Tutoring Session</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="event-form">
+          <input type="hidden" id="event-id">
+          <div class="mb-3">
+            <label for="event-title" class="form-label">Session Title</label>
+            <input type="text" class="form-control" id="event-title" placeholder="Enter session title" required>
+          </div>
+          <div class="mb-3">
+            <label for="event-start" class="form-label">Start Time</label>
+            <input type="datetime-local" class="form-control" id="event-start" required>
+          </div>
+          <div class="mb-3">
+            <label for="event-duration" class="form-label">Duration (minutes)</label>
+            <select class="form-control" id="event-duration" required>
+              <option value="30">30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60" selected>1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="event-description" class="form-label">Session Description</label>
+            <textarea class="form-control" id="event-description" rows="3"
+              placeholder="Enter session details, topics to cover, or any notes"></textarea>
+          </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="event-recurring" value="1">
+              <label class="form-check-label" for="event-recurring">
+                Recurring Session
+              </label>
+            </div>
+          </div>
+          <div id="recurring-options" class="mb-3" style="display: none;">
+            <div class="row">
+              <div class="col-md-6">
+                <label for="recurring-pattern" class="form-label">Repeat Pattern</label>
+                <select class="form-control" id="recurring-pattern">
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Bi-weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="recurring-end" class="form-label">End After</label>
+                <select class="form-control" id="recurring-end">
+                  <option value="4">4 sessions</option>
+                  <option value="8">8 sessions</option>
+                  <option value="12">12 sessions</option>
+                  <option value="16">16 sessions</option>
+                  <option value="20">20 sessions</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Select Student</label>
+            <div id="student-checkboxes" class="student-selection">
+              <!-- Student radio buttons will be loaded here -->
+              <div class="alert alert-info">Loading students...</div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="delete-event-btn" style="display: none;">Delete</button>
+        <button type="button" class="btn btn-primary" id="save-event-btn">Schedule Session</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="event-details-modal" tabindex="-1" aria-labelledby="event-details-modal-label"
+  data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Tutoring Session Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="event-details-content">
+          <p id="event-details-time" class="text-muted"></p>
+          <div id="event-details-student" class="mb-3">
+            <strong>Student:</strong> <span id="event-student-name"></span>
+          </div>
+          <div id="event-description-container" style="display: none;">
+            <strong>Description:</strong>
+            <p id="event-description-value"></p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="edit-event-btn" style="display: none;">Edit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+
+<script>
+  // Add this before the DOMContentLoaded event listener
+  let calendar;
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+    if (!token || !user) {
+      window.location.href = '/login';
+      return;
+    }
+
+    // Show loading state
+    const loadingEl = document.getElementById('calendar-loading');
+    const errorEl = document.getElementById('calendar-error');
+    const calendarContainer = document.querySelector('.calendar-container');
+
+    // Show tutor controls if the user is a tutor
+    if (user.role === 'tutor' || user.role === 'admin') {
+      document.getElementById('tutor-controls').style.display = 'block';
+    }
+
+    try {
+      // Initialize FullCalendar
+      const calendarEl = document.getElementById('calendar');
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        nowIndicator: true,
+        now: new Date().toISOString(),
+        height: '100%',
+        expandRows: true,
+        slotMinTime: '06:00:00',
+        slotMaxTime: '23:00:00',
+        slotDuration: '00:30:00',
+        allDaySlot: false,
+        scrollTime: '08:00:00',
+        handleWindowResize: true,
+        dayMaxEvents: true,
+        selectable: user.role === 'tutor' || user.role === 'admin',
+        editable: user.role === 'tutor' || user.role === 'admin',
+        displayEventTime: true,
+        displayEventEnd: true,
+        eventDisplay: 'block',
+        contentHeight: 'auto',
+        stickyHeaderDates: true,
+        events: function (fetchInfo, successCallback, failureCallback) {
+          fetch('/api/events', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Failed to fetch events');
+              }
+              return response.json();
+            })
+            .then(async data => {
+              console.log('Fetched events:', data); // Debug log
+
+              // Create a map to store student names
+              const studentNames = new Map();
+
+              // Fetch student names for all events
+              for (const event of data.events) {
+                if (event.studentIds && event.studentIds.length > 0) {
+                  const studentId = event.studentIds[0]; // Get first student
+                  if (!studentNames.has(studentId)) {
+                    try {
+                      const response = await fetch(`/api/users/${studentId}`, {
+                        headers: {
+                          'Authorization': `Bearer ${token}`
+                        }
+                      });
+                      if (response.ok) {
+                        const studentData = await response.json();
+                        studentNames.set(studentId, `${studentData.user.firstName} ${studentData.user.lastName}`);
+                      }
+                    } catch (error) {
+                      console.error('Error fetching student name:', error);
+                    }
+                  }
+                }
+              }
+
+              const events = data.events.map(event => {
+                const studentId = event.studentIds && event.studentIds[0];
+                const studentName = studentNames.get(studentId) || 'Unknown Student';
+                return {
+                  id: event.id,
+                  title: `${event.title} - ${studentName}`, // Add student name to title
+                  start: event.startTime,
+                  end: event.endTime,
+                  color: event.color || '#4285F4',
+                  extendedProps: {
+                    description: event.description,
+                    isRecurring: event.isRecurring,
+                    recurringPattern: event.recurringPattern,
+                    studentIds: event.studentIds,
+                    studentName: studentName // Store student name in extendedProps
+                  }
+                };
+              });
+              console.log('Mapped events:', events); // Additional debug log
+              successCallback(events);
+            })
+            .catch(error => {
+              console.error('Error fetching events:', error);
+              failureCallback(error);
+            });
+        },
+        eventTimeFormat: {
+          hour: '2-digit',
+          minute: '2-digit',
+          meridiem: 'short'
+        },
+        eventClick: function (info) {
+          showEventDetails(info.event);
+        },
+        select: function (info) {
+          if (user.role === 'tutor' || user.role === 'admin') {
+            showAddEventModal(info.startStr, info.endStr);
+          }
+        },
+        loading: function (isLoading) {
+          console.log('Calendar loading state:', isLoading);
+        },
+        eventDidMount: function (info) {
+          console.log('Event mounted:', info.event.title, info.event.start);
+        }
+      });
+
+      calendar.render();
+
+      // Hide loading and show calendar
+      loadingEl.style.display = 'none';
+      calendarContainer.style.display = 'block';
+
+      // Add event button
+      const addEventBtn = document.getElementById('add-event-btn');
+      if (addEventBtn) {
+        addEventBtn.addEventListener('click', () => {
+          showAddEventModal();
+        });
+      }
+
+      // Save event button
+      const saveEventBtn = document.getElementById('save-event-btn');
+      saveEventBtn.addEventListener('click', async () => {
+        saveEvent();
+      });
+
+      // Delete event button
+      const deleteEventBtn = document.getElementById('delete-event-btn');
+      deleteEventBtn.addEventListener('click', async () => {
+        deleteEvent();
+      });
+
+      // Edit event button
+      const editEventBtn = document.getElementById('edit-event-btn');
+      editEventBtn.addEventListener('click', () => {
+        const eventId = editEventBtn.getAttribute('data-event-id');
+        if (eventId) {
+          // Close details modal
+          const eventDetailsModal = bootstrap.Modal.getInstance(document.getElementById('event-details-modal'));
+          eventDetailsModal.hide();
+
+          // Open edit modal
+          getEventForEditing(eventId);
+        }
+      });
+
+      // iCal download links
+      document.getElementById('ical-download-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        downloadAllEventsAsIcal();
+      });
+
+      // Export to third-party calendars
+      setupCalendarExportLinks();
+
+      // If the user is a tutor, load their students for the event form
+      if (user.role === 'tutor' || user.role === 'admin') {
+        loadStudents();
+      }
+
+      // Add this after the DOMContentLoaded event listener
+      document.getElementById('event-recurring').addEventListener('change', function (e) {
+        const recurringOptions = document.getElementById('recurring-options');
+        recurringOptions.style.display = e.target.checked ? 'block' : 'none';
+      });
+    } catch (error) {
+      console.error('Calendar error:', error);
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+    }
+  });
+
+  // Show event modal for adding a new event
+  function showAddEventModal(startDate = null, endDate = null) {
+    // Reset form
+    document.getElementById('event-form').reset();
+    document.getElementById('event-id').value = '';
+    document.getElementById('event-modal-label').textContent = 'Schedule Tutoring Session';
+    document.getElementById('delete-event-btn').style.display = 'none';
+
+    // Set default start/end dates if provided
+    if (startDate) {
+      document.getElementById('event-start').value = formatDateForInput(startDate);
+    }
+    if (endDate) {
+      document.getElementById('event-duration').value = calculateDuration(startDate, endDate);
+    }
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('event-modal'), {
+      keyboard: true,
+      focus: true
+    });
+
+    // Handle modal closing
+    const eventModal = document.getElementById('event-modal');
+    eventModal.addEventListener('hidden.bs.modal', function () {
+      // Return focus to the add event button
+      const addEventBtn = document.getElementById('add-event-btn');
+      if (addEventBtn) {
+        addEventBtn.focus();
+      }
+    });
+
+    modal.show();
+  }
+
+  // Show event details modal
+  function showEventDetails(event) {
+    const modal = new bootstrap.Modal(document.getElementById('event-details-modal'), {
+      keyboard: true,
+      focus: true
+    });
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+    // Handle modal closing
+    const detailsModal = document.getElementById('event-details-modal');
+    detailsModal.addEventListener('hidden.bs.modal', function () {
+      // Return focus to the calendar
+      if (calendar) {
+        calendar.getEl().focus();
+      }
+    });
+
+    // Set event details with student name
+    const studentName = event.extendedProps.studentName;
+    document.getElementById('event-student-name').textContent = studentName;
+
+    // Format date/time and duration
+    const startDate = new Date(event.start);
+    const endDate = new Date(event.end);
+    const durationMinutes = Math.round((endDate - startDate) / (1000 * 60));
+
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const timeOptions = { hour: '2-digit', minute: '2-digit' };
+
+    const timeString = `${startDate.toLocaleDateString(undefined, dateOptions)} at ${startDate.toLocaleTimeString(undefined, timeOptions)}`;
+    const durationString = `Duration: ${durationMinutes} minutes`;
+
+    let scheduleInfo = `${timeString}\n${durationString}`;
+
+    // Add recurring information if applicable
+    if (event.extendedProps.isRecurring) {
+      const pattern = event.extendedProps.recurringPattern;
+      scheduleInfo += `\nRecurring: ${pattern.type}, ${pattern.occurrences} sessions`;
+    }
+
+    document.getElementById('event-details-time').textContent = scheduleInfo;
+
+    // Set description if available
+    const descriptionEl = document.getElementById('event-description-value');
+    if (event.extendedProps.description) {
+      descriptionEl.textContent = event.extendedProps.description;
+      document.getElementById('event-description-container').style.display = 'block';
+    } else {
+      document.getElementById('event-description-container').style.display = 'none';
+    }
+
+    // Show edit button for tutors
+    const editBtn = document.getElementById('edit-event-btn');
+    if (user.role === 'tutor' || user.role === 'admin') {
+      editBtn.style.display = 'block';
+      editBtn.setAttribute('data-event-id', event.id);
+    } else {
+      editBtn.style.display = 'none';
+    }
+
+    // Show modal
+    modal.show();
+  }
+
+  // Save event (create or update)
+  async function saveEvent() {
+    const eventId = document.getElementById('event-id').value;
+    const title = document.getElementById('event-title').value;
+    const startTimeInput = document.getElementById('event-start').value;
+    const duration = parseInt(document.getElementById('event-duration').value);
+    const description = document.getElementById('event-description').value;
+    const selectedStudent = document.querySelector('input[name="student"]:checked');
+    const isRecurring = document.getElementById('event-recurring').checked;
+
+    // Validation
+    if (!title || !startTimeInput || !duration || !selectedStudent) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    // Properly format the dates
+    const start = new Date(startTimeInput);
+    const end = new Date(start.getTime() + duration * 60000);
+
+    // Ensure valid dates
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      alert('Invalid date format');
+      return;
+    }
+
+    // Prepare data
+    const eventData = {
+      title: title,
+      description: description,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      studentIds: [selectedStudent.value],
+      isRecurring: isRecurring
+    };
+
+    // Add recurring pattern if enabled
+    if (isRecurring) {
+      eventData.recurringPattern = {
+        type: document.getElementById('recurring-pattern').value,
+        occurrences: parseInt(document.getElementById('recurring-end').value)
+      };
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      let response;
+
+      if (eventId) {
+        // Update existing event
+        response = await fetch(`/api/events/${eventId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(eventData)
+        });
+      } else {
+        // Create new event
+        response = await fetch('/api/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(eventData)
+        });
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save event');
+      }
+
+      // Close modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('event-modal'));
+      if (modal) {
+        modal.hide();
+      }
+
+      // Refresh calendar
+      if (calendar) {
+        calendar.refetchEvents();
+      } else {
+        window.location.reload(); // Fallback if calendar is not available
+      }
+    } catch (error) {
+      console.error('Error saving event:', error);
+      alert(error.message || 'Failed to save event. Please try again.');
+    }
+  }
+
+  // Delete event
+  async function deleteEvent() {
+    const eventId = document.getElementById('event-id').value;
+
+    if (!eventId) {
+      return;
+    }
+
+    if (!confirm('Are you sure you want to delete this event?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete event');
+      }
+
+      // Close modal and refresh calendar
+      const eventModal = bootstrap.Modal.getInstance(document.getElementById('event-modal'));
+      eventModal.hide();
+
+      // Refresh calendar
+      if (calendar) {
+        calendar.refetchEvents();
+      } else {
+        window.location.reload(); // Fallback if calendar is not available
+      }
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      alert('Failed to delete event. Please try again.');
+    }
+  }
+
+  // Get event for editing
+  async function getEventForEditing(eventId) {
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`/api/events/${eventId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get event details');
+      }
+
+      const data = await response.json();
+      const event = data.event;
+
+      // Set form fields
+      document.getElementById('event-id').value = event.id;
+      document.getElementById('event-title').value = event.title;
+      document.getElementById('event-description').value = event.description || '';
+      document.getElementById('event-start').value = formatDateForInput(event.startTime);
+
+      // Calculate and set duration
+      const start = new Date(event.startTime);
+      const end = new Date(event.endTime);
+      const durationMinutes = Math.round((end - start) / (1000 * 60));
+      document.getElementById('event-duration').value = durationMinutes.toString();
+
+      // Set recurring options if applicable
+      document.getElementById('event-recurring').checked = event.isRecurring || false;
+      const recurringOptions = document.getElementById('recurring-options');
+      recurringOptions.style.display = event.isRecurring ? 'block' : 'none';
+
+      if (event.isRecurring && event.recurringPattern) {
+        document.getElementById('recurring-pattern').value = event.recurringPattern.type;
+        document.getElementById('recurring-end').value = event.recurringPattern.occurrences;
+      }
+
+      // Select student radio button
+      if (event.studentIds && event.studentIds.length > 0) {
+        const studentRadio = document.querySelector(`input[name="student"][value="${event.studentIds[0]}"]`);
+        if (studentRadio) {
+          studentRadio.checked = true;
+        }
+      }
+
+      // Update modal title and show delete button
+      document.getElementById('event-modal-label').textContent = 'Edit Tutoring Session';
+      document.getElementById('delete-event-btn').style.display = 'block';
+
+      // Show modal
+      const eventModal = new bootstrap.Modal(document.getElementById('event-modal'));
+      eventModal.show();
+    } catch (error) {
+      console.error('Error getting event details:', error);
+      alert('Failed to load event details. Please try again.');
+    }
+  }
+
+  // Load students for selection in the event form
+  async function loadStudents() {
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch('/api/users/tutor/pupils', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load students');
+      }
+
+      const data = await response.json();
+      const students = data.pupils || [];
+
+      const studentCheckboxes = document.getElementById('student-checkboxes');
+      studentCheckboxes.innerHTML = '';
+
+      if (students.length === 0) {
+        studentCheckboxes.innerHTML = '<div class="alert alert-info">No students found. <a href="/tutor/invite">Invite students</a> to add them to your calendar.</div>';
+        return;
+      }
+
+      students.forEach(student => {
+        const div = document.createElement('div');
+        div.className = 'form-check';
+
+        const input = document.createElement('input');
+        input.className = 'form-check-input';
+        input.type = 'radio';
+        input.name = 'student';
+        input.value = student.id;
+        input.id = `student-${student.id}`;
+        input.required = true;
+
+        const label = document.createElement('label');
+        label.className = 'form-check-label';
+        label.htmlFor = `student-${student.id}`;
+        label.textContent = `${student.firstName} ${student.lastName}`;
+
+        div.appendChild(input);
+        div.appendChild(label);
+        studentCheckboxes.appendChild(div);
+      });
+    } catch (error) {
+      console.error('Error loading students:', error);
+      const studentCheckboxes = document.getElementById('student-checkboxes');
+      studentCheckboxes.innerHTML = '<div class="alert alert-danger">Failed to load students. Please try again later.</div>';
+    }
+  }
+
+  // Format date string for datetime-local input
+  function formatDateForInput(dateStr) {
+    const date = new Date(dateStr);
+    return date.toISOString().slice(0, 16);
+  }
+
+  // Calculate duration in minutes
+  function calculateDuration(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const durationMinutes = Math.round((end - start) / (1000 * 60));
+    return durationMinutes.toString();
+  }
+
+  // Download all events as iCal file
+  async function downloadAllEventsAsIcal() {
+    try {
+      const token = localStorage.getItem('token');
+
+      // Create a link to download all events
+      const link = document.createElement('a');
+      link.href = '/api/events/ical';
+      link.download = 'tutoring-calendar.ics';
+      link.click();
+    } catch (error) {
+      console.error('Error downloading iCal:', error);
+      alert('Failed to download calendar. Please try again.');
+    }
+  }
+
+  // Setup calendar export links
+  function setupCalendarExportLinks() {
+    const baseUrl = window.location.origin;
+    const webcalUrl = `webcal://${window.location.host}/api/events/ical`;
+
+    // Google Calendar
+    document.getElementById('google-calendar-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      const googleUrl = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
+      window.open(googleUrl, '_blank');
+    });
+
+    // Apple Calendar
+    document.getElementById('apple-calendar-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.href = webcalUrl;
+    });
+
+    // Outlook Calendar
+    document.getElementById('outlook-calendar-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      const outlookUrl = `https://outlook.office.com/owa/?path=/calendar/action/compose&rru=addsubscription&url=${encodeURIComponent(webcalUrl)}&name=${encodeURIComponent('Tutoring Calendar')}`;
+      window.open(outlookUrl, '_blank');
+    });
+  }
+</script>
+
+<style>
+  /* Modernize the design with a new color palette */
+  body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f4f7fa;
+    color: #333;
+  }
+
+  .calendar-section {
+    padding: 2rem 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 0;
+    background: transparent;
+  }
+
+  .section-title {
+    font-size: 1.75rem;
+    color: #2c3e50;
+    margin: 0;
+    font-weight: 500;
+    display: inline-block;
+  }
+
+  .calendar-links {
+    display: flex;
+    align-items: center;
+  }
+
+  .calendar-links .dropdown {
+    margin-left: 1rem;
+  }
+
+  .calendar-container {
+    margin-top: 1rem;
+    background-color: #fff;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+    min-height: 700px;
+    height: auto;
+    overflow: hidden;
+  }
+
+  #calendar {
+    background-color: #fff;
+    height: 100%;
+    min-height: 700px;
+  }
+
+  .fc {
+    max-width: 100%;
+    height: 100%;
+  }
+
+  .fc .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .fc .fc-toolbar-title {
+    font-size: 1.5rem !important;
+    color: #2c3e50;
+  }
+
+  .fc .fc-button-primary {
+    background-color: #3498db;
+    border-color: #3498db;
+    padding: 0.5rem 1rem;
+  }
+
+  .fc .fc-button-primary:hover {
+    background-color: #2980b9;
+    border-color: #2980b9;
+  }
+
+  .fc .fc-button-primary:not(:disabled).fc-button-active,
+  .fc .fc-button-primary:not(:disabled):active {
+    background-color: #2980b9;
+    border-color: #2980b9;
+  }
+
+  .fc-view-harness {
+    background: white;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .fc-theme-standard td,
+  .fc-theme-standard th {
+    border-color: #e1e8ed;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .calendar-container {
+      padding: 1rem 0.5rem;
+    }
+
+    .fc .fc-toolbar {
+      padding: 0.5rem;
+    }
+
+    .fc .fc-toolbar-title {
+      font-size: 1.2rem !important;
+    }
+  }
+
+  /* Button and Modal styles */
+  .btn {
+    border-radius: 0.25rem;
+    transition: background-color 0.3s ease;
+  }
+
+  .btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+  }
+
+  .btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+  }
+
+  .btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+  }
+
+  .btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #5a6268;
+  }
+
+  .modal-content {
+    border-radius: 0.5rem;
+  }
+
+  .student-selection {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+  }
+
+  .student-selection .form-check {
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.2s ease;
+  }
+
+  .student-selection .form-check:hover {
+    background-color: #f8f9fa;
+  }
+
+  .student-selection .form-check-input:checked+.form-check-label {
+    color: #007bff;
+    font-weight: 500;
+  }
+</style>
+
+<%- include('../partials/footer') %>

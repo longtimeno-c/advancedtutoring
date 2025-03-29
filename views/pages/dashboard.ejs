@@ -1,0 +1,614 @@
+<%- include('../partials/header') %>
+
+<section class="dashboard-section">
+  <div class="container">
+    <h1 class="section-title" id="dashboard-title">Dashboard</h1>
+    
+    <!-- Loading state -->
+    <div id="dashboard-loading" class="loading-container">
+      <p>Loading your dashboard...</p>
+    </div>
+    
+    <!-- Error state -->
+    <div id="dashboard-error" class="error-container" style="display: none;">
+      <p>Error loading dashboard. Please try again later.</p>
+    </div>
+    
+    <!-- Admin Dashboard -->
+    <div id="admin-dashboard" class="role-dashboard" style="display: none;">
+      <div class="dashboard-card">
+        <h2>Admin Dashboard</h2>
+        <div class="dashboard-actions">
+          <a href="/admin/users" class="btn btn-primary">Manage Users</a>
+          <a href="/admin/access-codes" class="btn btn-secondary">Manage Access Codes</a>
+        </div>
+      </div>
+      
+      <div class="dashboard-stats">
+        <div class="stat-card">
+          <h3>Total Users</h3>
+          <p id="admin-total-users">0</p>
+        </div>
+        <div class="stat-card">
+          <h3>Tutors</h3>
+          <p id="admin-total-tutors">0</p>
+        </div>
+        <div class="stat-card">
+          <h3>Pupils</h3>
+          <p id="admin-total-pupils">0</p>
+        </div>
+      </div>
+      
+      <div class="dashboard-table">
+        <h3>Recent Users</h3>
+        <div id="recent-users-list">
+          <!-- Recent users will be loaded here -->
+        </div>
+      </div>
+    </div>
+    
+    <!-- Tutor Dashboard -->
+    <div id="tutor-dashboard" class="role-dashboard" style="display: none;">
+      <div class="dashboard-card">
+        <h2>Tutor Dashboard</h2>
+        <div class="dashboard-actions">
+          <a href="/tutor/pupils" class="btn btn-primary">My Pupils</a>
+          <a href="/tutor/invite" class="btn btn-secondary">Invite Pupil</a>
+          <a href="/profile" class="btn btn-secondary">Edit Profile</a>
+        </div>
+      </div>
+      
+      <div class="dashboard-stats">
+        <div class="stat-card">
+          <h3>My Pupils</h3>
+          <p id="tutor-total-pupils">0</p>
+        </div>
+        <div class="stat-card">
+          <h3>Unread Messages</h3>
+          <p id="tutor-unread-messages">0</p>
+        </div>
+      </div>
+      
+      <div class="dashboard-table">
+        <h3>My Pupils</h3>
+        <div id="tutor-pupils-list">
+          <!-- Pupils will be loaded here -->
+        </div>
+      </div>
+    </div>
+    
+    <!-- Pupil Dashboard -->
+    <div id="pupil-dashboard" class="role-dashboard" style="display: none;">
+      <div class="dashboard-card">
+        <h2>My Learning Dashboard</h2>
+        <div class="dashboard-actions">
+          <a href="/messages" class="btn btn-primary">Message My Tutor</a>
+          <a href="/profile" class="btn btn-secondary">Edit Profile</a>
+        </div>
+      </div>
+      
+      <!-- Tutor Profile Overview -->
+      <div class="dashboard-card">
+        <h3>My Tutor</h3>
+        <div class="profile-overview">
+          <div class="profile-header">
+            <div class="profile-avatar">
+              <img id="my-tutor-profile-picture" src="/images/default-avatar.png" alt="Tutor's Profile Picture">
+            </div>
+            <div class="profile-info">
+              <h3 id="my-tutor-name">Loading...</h3>
+              <p id="my-tutor-email" class="text-muted">Loading...</p>
+            </div>
+          </div>
+          <div class="profile-bio" id="my-tutor-bio">
+            <p>Loading...</p>
+          </div>
+          <div class="profile-details">
+            <div class="detail-item">
+              <span class="detail-label">Interests:</span>
+              <span id="my-tutor-interests">Loading...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="dashboard-stats">
+        <div class="stat-card">
+          <h3>Unread Messages</h3>
+          <p id="pupil-unread-messages">0</p>
+        </div>
+      </div>
+      
+      <div class="dashboard-table">
+        <h3>Recent Messages</h3>
+        <div id="pupil-messages-list">
+          <!-- Messages will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    if (!token || !user) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    // Set dashboard title
+    const dashboardTitle = document.getElementById('dashboard-title');
+    dashboardTitle.textContent = `Welcome, ${user.firstName || 'User'}!`;
+    
+    // Show loading state
+    const loadingEl = document.getElementById('dashboard-loading');
+    const errorEl = document.getElementById('dashboard-error');
+    
+    try {
+      // Fetch current user data
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load user data');
+      }
+      
+      const userData = await response.json();
+      const currentUser = userData.user;
+      
+      // Hide loading
+      loadingEl.style.display = 'none';
+      
+      // Show dashboard based on role and update profile
+      if (currentUser.role === 'admin') {
+        loadAdminDashboard();
+      } else if (currentUser.role === 'tutor') {
+        loadTutorDashboard();
+      } else if (currentUser.role === 'pupil') {
+        loadPupilDashboard();
+      }
+    } catch (error) {
+      console.error('Dashboard error:', error);
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+    }
+  });
+  
+  // Load admin dashboard data
+  async function loadAdminDashboard() {
+    const adminDashboard = document.getElementById('admin-dashboard');
+    adminDashboard.style.display = 'block';
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Fetch all users
+      const response = await fetch('/api/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load users');
+      }
+      
+      const data = await response.json();
+      const users = data.users || [];
+      
+      // Update stats
+      document.getElementById('admin-total-users').textContent = users.length;
+      document.getElementById('admin-total-tutors').textContent = users.filter(user => user.role === 'tutor').length;
+      document.getElementById('admin-total-pupils').textContent = users.filter(user => user.role === 'pupil').length;
+      
+      // Show recent users
+      const recentUsersList = document.getElementById('recent-users-list');
+      const recentUsers = users.slice(0, 5); // Get last 5 users
+      
+      if (recentUsers.length === 0) {
+        recentUsersList.innerHTML = '<p>No users found.</p>';
+      } else {
+        recentUsersList.innerHTML = `
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${recentUsers.map(user => `
+                <tr>
+                  <td>${user.firstName} ${user.lastName}</td>
+                  <td>${user.email}</td>
+                  <td>${user.role}</td>
+                  <td>
+                    <a href="/admin/users/${user.id}" class="btn-small">View</a>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+    } catch (error) {
+      console.error('Admin dashboard error:', error);
+    }
+  }
+  
+  // Load tutor dashboard data
+  async function loadTutorDashboard() {
+    const tutorDashboard = document.getElementById('tutor-dashboard');
+    tutorDashboard.style.display = 'block';
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Fetch tutor's pupils
+      const pupilsResponse = await fetch('/api/users/tutor/pupils', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!pupilsResponse.ok) {
+        throw new Error('Failed to load pupils');
+      }
+      
+      const pupilsData = await pupilsResponse.json();
+      const pupils = pupilsData.pupils || [];
+      
+      // Fetch unread messages
+      const messagesResponse = await fetch('/api/messages/unread', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!messagesResponse.ok) {
+        throw new Error('Failed to load messages');
+      }
+      
+      const messagesData = await messagesResponse.json();
+      
+      // Update stats
+      document.getElementById('tutor-total-pupils').textContent = pupils.length;
+      document.getElementById('tutor-unread-messages').textContent = messagesData.total || 0;
+      
+      // Show pupils list
+      const pupilsList = document.getElementById('tutor-pupils-list');
+      
+      if (pupils.length === 0) {
+        pupilsList.innerHTML = '<p>You have no pupils yet. Invite pupils using the button above.</p>';
+      } else {
+        pupilsList.innerHTML = `
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pupils.map(pupil => `
+                <tr>
+                  <td>${pupil.firstName} ${pupil.lastName}</td>
+                  <td>${pupil.email}</td>
+                  <td>
+                    <a href="/tutor/pupils/${pupil.id}" class="btn-small">View</a>
+                    <a href="/messages/conversation/${pupil.id}" class="btn-small">Message</a>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+    } catch (error) {
+      console.error('Tutor dashboard error:', error);
+    }
+  }
+  
+  // Load pupil dashboard data
+  async function loadPupilDashboard() {
+    const pupilDashboard = document.getElementById('pupil-dashboard');
+    pupilDashboard.style.display = 'block';
+    const errorEl = document.getElementById('dashboard-error');
+    errorEl.style.display = 'none'; // Hide any previous error
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Fetch pupil's tutor
+      const tutorResponse = await fetch('/api/users/pupil/tutor', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      // Handle tutor data
+      const tutorData = await tutorResponse.json();
+      
+      // Update tutor profile section
+      if (tutorResponse.ok && tutorData.tutor) {
+        const tutor = tutorData.tutor;
+        document.getElementById('my-tutor-name').textContent = `${tutor.firstName} ${tutor.lastName}`.trim();
+        document.getElementById('my-tutor-email').textContent = tutor.email;
+        document.getElementById('my-tutor-bio').innerHTML = tutor.bio ? `<p>${tutor.bio}</p>` : '<p class="text-muted">No bio added yet</p>';
+        document.getElementById('my-tutor-interests').textContent = tutor.interests || 'Not specified';
+        
+        if (tutor.profilePicture) {
+          document.getElementById('my-tutor-profile-picture').src = tutor.profilePicture;
+        }
+
+        // Fetch messages only if we have a tutor
+        try {
+          const [messagesResponse, conversationResponse] = await Promise.all([
+            fetch('/api/messages/unread', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            }),
+            fetch(`/api/messages/conversation/${tutor.id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+          ]);
+
+          // Handle unread messages count
+          if (messagesResponse.ok) {
+            const messagesData = await messagesResponse.json();
+            document.getElementById('pupil-unread-messages').textContent = messagesData.total || 0;
+          }
+
+          // Handle conversation messages
+          if (conversationResponse.ok) {
+            const conversationData = await conversationResponse.json();
+            const messages = conversationData.messages || [];
+            const recentMessages = messages.slice(-5).reverse(); // Get last 5 messages
+            
+            const messagesList = document.getElementById('pupil-messages-list');
+            if (recentMessages.length === 0) {
+              messagesList.innerHTML = '<p>No messages yet. Start a conversation with your tutor.</p>';
+            } else {
+              messagesList.innerHTML = `
+                <div class="message-list">
+                  ${recentMessages.map(message => `
+                    <div class="message ${message.senderId === tutor.id ? 'received' : 'sent'}">
+                      <div class="message-content">${message.content}</div>
+                      <div class="message-time">${new Date(message.createdAt).toLocaleString()}</div>
+                    </div>
+                  `).join('')}
+                </div>
+                <div class="view-all">
+                  <a href="/messages/conversation/${tutor.id}" class="btn-link">View all messages</a>
+                </div>
+              `;
+            }
+          } else {
+            document.getElementById('pupil-messages-list').innerHTML = '<p>Unable to load messages. Please try again later.</p>';
+          }
+        } catch (error) {
+          console.error('Messages error:', error);
+          document.getElementById('pupil-messages-list').innerHTML = '<p>Unable to load messages. Please try again later.</p>';
+        }
+      } else {
+        // No tutor assigned or error
+        const message = tutorData.message || 'No tutor assigned';
+        document.getElementById('my-tutor-name').textContent = 'Not assigned';
+        document.getElementById('my-tutor-email').textContent = '';
+        document.getElementById('my-tutor-bio').innerHTML = `<p class="text-muted">${message}</p>`;
+        document.getElementById('my-tutor-interests').textContent = 'N/A';
+        document.getElementById('pupil-messages-list').innerHTML = `<p>${message}</p>`;
+        document.getElementById('pupil-unread-messages').textContent = '0';
+      }
+    } catch (error) {
+      console.error('Pupil dashboard error:', error);
+      // Show a more specific error message in the dashboard instead of the generic error
+      document.getElementById('my-tutor-name').textContent = 'Error loading tutor information';
+      document.getElementById('my-tutor-email').textContent = '';
+      document.getElementById('my-tutor-bio').innerHTML = '<p class="text-muted">Please try refreshing the page</p>';
+      document.getElementById('my-tutor-interests').textContent = '';
+      document.getElementById('pupil-messages-list').innerHTML = '<p>Unable to load messages. Please try refreshing the page.</p>';
+      document.getElementById('pupil-unread-messages').textContent = '0';
+    }
+  }
+</script>
+
+<style>
+  .dashboard-section {
+    padding: 2rem 0;
+  }
+  
+  .dashboard-card {
+    background-color: var(--bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .dashboard-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .stat-card {
+    background-color: var(--bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    text-align: center;
+  }
+  
+  .stat-card h3 {
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+  }
+  
+  .stat-card p {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin: 0;
+  }
+  
+  .dashboard-table {
+    background-color: var(--bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+  }
+  
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+  }
+  
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .data-table th {
+    font-weight: 600;
+    background-color: var(--light-bg);
+  }
+  
+  .btn-small {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: var(--border-radius);
+    text-decoration: none;
+    margin-right: 0.5rem;
+  }
+  
+  .loading-container {
+    text-align: center;
+    padding: 2rem;
+  }
+  
+  .error-container {
+    text-align: center;
+    padding: 2rem;
+    color: var(--accent-color);
+  }
+  
+  .message-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .message {
+    padding: 0.75rem;
+    border-radius: var(--border-radius);
+    max-width: 80%;
+  }
+  
+  .message.sent {
+    background-color: var(--primary-color);
+    color: white;
+    align-self: flex-end;
+  }
+  
+  .message.received {
+    background-color: var(--light-bg);
+    align-self: flex-start;
+  }
+  
+  .message-time {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    opacity: 0.8;
+  }
+  
+  .view-all {
+    text-align: center;
+    margin-top: 1rem;
+  }
+  
+  .btn-link {
+    color: var(--primary-color);
+    text-decoration: underline;
+  }
+  
+  .profile-overview {
+    padding: 1.5rem;
+  }
+  
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .profile-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--primary-color);
+  }
+  
+  .profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .profile-info h3 {
+    margin: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .text-muted {
+    color: #666;
+  }
+  
+  .profile-bio {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--light-bg);
+    border-radius: var(--border-radius);
+  }
+  
+  .profile-details {
+    display: grid;
+    gap: 1rem;
+  }
+  
+  .detail-item {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .detail-label {
+    font-weight: 600;
+    min-width: 100px;
+  }
+</style>
+
+<%- include('../partials/footer') %> 

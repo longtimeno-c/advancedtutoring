@@ -1,0 +1,225 @@
+<%- include('../partials/header') %>
+
+<section class="pupils-section">
+  <div class="container">
+    <div class="section-header">
+      <h1 class="section-title">My Pupils</h1>
+      <a href="/tutor/invite" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Invite New Pupil
+      </a>
+    </div>
+    
+    <!-- Loading state -->
+    <div id="pupils-loading" class="loading-container">
+      <p>Loading pupils...</p>
+    </div>
+    
+    <!-- Error state -->
+    <div id="pupils-error" class="error-container" style="display: none;">
+      <p>Error loading pupils. Please try again later.</p>
+    </div>
+    
+    <!-- Pupils Grid -->
+    <div id="pupils-grid" class="pupils-grid" style="display: none;">
+      <!-- Pupils will be loaded here -->
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    if (!token || !user) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    // Show loading state
+    const loadingEl = document.getElementById('pupils-loading');
+    const errorEl = document.getElementById('pupils-error');
+    const pupilsGrid = document.getElementById('pupils-grid');
+    
+    try {
+      // Fetch pupils
+      const response = await fetch('/api/users/tutor/pupils', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load pupils');
+      }
+      
+      const data = await response.json();
+      const pupils = data.pupils || [];
+      
+      // Hide loading
+      loadingEl.style.display = 'none';
+      pupilsGrid.style.display = 'grid';
+      
+      if (pupils.length === 0) {
+        pupilsGrid.innerHTML = `
+          <div class="empty-state">
+            <p>You don't have any pupils yet.</p>
+            <p>Click the "Invite New Pupil" button to get started!</p>
+          </div>
+        `;
+      } else {
+        pupilsGrid.innerHTML = pupils.map(pupil => `
+          <div class="pupil-card">
+            <div class="pupil-avatar">
+              <img src="${pupil.profilePicture || '/images/default-avatar.png'}" alt="Profile Picture">
+            </div>
+            <div class="pupil-info">
+              <h3>${pupil.firstName} ${pupil.lastName}</h3>
+              <p class="pupil-email">${pupil.email}</p>
+              <p class="pupil-status">
+                <span class="status-indicator ${pupil.verified ? 'verified' : 'pending'}"></span>
+                ${pupil.verified ? 'Verified' : 'Pending Verification'}
+              </p>
+              <div class="pupil-bio-preview">
+                <p>${pupil.bio ? pupil.bio.substring(0, 100) + (pupil.bio.length > 100 ? '...' : '') : 'No bio added yet.'}</p>
+              </div>
+            </div>
+            <div class="pupil-actions">
+              <a href="/messages/conversation/${pupil.id}" class="btn btn-primary btn-sm">
+                <i class="fas fa-comment"></i> Message
+              </a>
+              <a href="/tutor/pupils/${pupil.id}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-eye"></i> View Details
+              </a>
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch (error) {
+      console.error('Pupils error:', error);
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+    }
+  });
+</script>
+
+<style>
+  .pupils-section {
+    padding: 2rem 0;
+  }
+  
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+  
+  .pupils-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+  
+  .pupil-card {
+    background: var(--bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    text-align: center;
+  }
+  
+  .pupil-avatar {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+  
+  .pupil-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .pupil-info {
+    margin-bottom: 1.5rem;
+  }
+  
+  .pupil-info h3 {
+    margin: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .pupil-email {
+    color: #666;
+    margin: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .pupil-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0;
+  }
+  
+  .status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  
+  .status-indicator.verified {
+    background-color: var(--secondary-color);
+  }
+  
+  .status-indicator.pending {
+    background-color: #f1c40f;
+  }
+  
+  .pupil-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+  
+  .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #666;
+  }
+  
+  .empty-state p {
+    margin: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .pupil-bio-preview {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .pupil-bio-preview p {
+    color: #666;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>
+
+<%- include('../partials/footer') %> 

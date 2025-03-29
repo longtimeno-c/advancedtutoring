@@ -1,0 +1,102 @@
+<%- include('../partials/header') %>
+
+<section class="auth-section">
+  <div class="auth-container">
+    <h1 class="auth-title">Register</h1>
+    <form id="register-form" class="auth-form">
+      <div class="form-message" id="register-message" style="display: none;"></div>
+      
+      <div class="form-group">
+        <label for="firstName">First Name</label>
+        <input type="text" id="firstName" name="firstName">
+      </div>
+      
+      <div class="form-group">
+        <label for="lastName">Last Name</label>
+        <input type="text" id="lastName" name="lastName">
+      </div>
+      
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="accessCode">Access Code</label>
+        <input type="text" id="accessCode" name="accessCode" value="<%= accessCode %>" required>
+        <small>You need an access code from a tutor to register.</small>
+      </div>
+      
+      <div class="form-group">
+        <button type="submit" class="btn btn-primary btn-block">Register</button>
+      </div>
+      
+      <div class="auth-links">
+        <p>Already have an account? <a href="/login">Login</a></p>
+      </div>
+    </form>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const registerForm = document.getElementById('register-form');
+    const messageElement = document.getElementById('register-message');
+    
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const firstName = document.getElementById('firstName').value;
+      const lastName = document.getElementById('lastName').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const accessCode = document.getElementById('accessCode').value;
+      
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ firstName, lastName, email, password, accessCode })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Registration failed');
+        }
+        
+        // Store user data and token in localStorage
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Show success message
+        messageElement.textContent = 'Registration successful! Redirecting...';
+        messageElement.className = 'form-message success';
+        messageElement.style.display = 'block';
+        
+        if (data.user.verified) {
+          // If user is verified, redirect to profile setup
+          window.location.href = '/profile-setup';
+        } else {
+          // If user needs verification, redirect to verification pending page
+          window.location.href = '/verify-email-pending';
+        }
+        
+      } catch (error) {
+        // Show error message
+        messageElement.textContent = error.message;
+        messageElement.className = 'form-message error';
+        messageElement.style.display = 'block';
+      }
+    });
+  });
+</script>
+
+<%- include('../partials/footer') %> 

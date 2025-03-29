@@ -1,0 +1,252 @@
+<%- include('../partials/header') %>
+
+<section class="messages-section">
+  <div class="container">
+    <h1 class="section-title">Messages</h1>
+    
+    <!-- Loading state -->
+    <div id="messages-loading" class="loading-container">
+      <p>Loading conversations...</p>
+    </div>
+    
+    <!-- Error state -->
+    <div id="messages-error" class="error-container" style="display: none;">
+      <p>Error loading conversations. Please try again later.</p>
+    </div>
+    
+    <!-- Conversations List -->
+    <div id="conversations-list" class="conversations-list" style="display: none;">
+      <!-- Conversations will be loaded here -->
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    if (!token || !user) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    // Show loading state
+    const loadingEl = document.getElementById('messages-loading');
+    const errorEl = document.getElementById('messages-error');
+    const conversationsList = document.getElementById('conversations-list');
+    
+    try {
+      // Fetch conversations
+      const response = await fetch('/api/messages/conversations', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load conversations');
+      }
+      
+      const data = await response.json();
+      const conversations = data.conversations || [];
+      
+      // Hide loading
+      loadingEl.style.display = 'none';
+      conversationsList.style.display = 'block';
+      
+      if (conversations.length === 0) {
+        conversationsList.innerHTML = `
+          <div class="empty-state">
+            <p>No conversations yet.</p>
+            ${user.role === 'pupil' ? 
+              '<p>Start a conversation with your tutor!</p>' : 
+              '<p>Start a conversation with your pupils!</p>'}
+          </div>
+        `;
+      } else {
+        // Fetch user details for each conversation
+        const conversationsWithDetails = await Promise.all(
+          conversations.map(async conv => {
+            try {
+              const userResponse = await fetch(`/api/users/${conv.otherUser.id}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              
+              if (userResponse.ok) {
+                const userData = await userResponse.json();
+                return {
+                  ...conv,
+                  otherUser: {
+                    ...conv.otherUser,
+                    ...userData.user
+                  }
+                };
+              }
+              return conv;
+            } catch (error) {
+              console.error('Error fetching user details:', error);
+              return conv;
+            }
+          })
+        );
+
+        conversationsList.innerHTML = conversationsWithDetails.map(conv => `
+          <a href="/messages/conversation/${conv.otherUser.id}" class="conversation-item ${conv.unreadCount > 0 ? 'unread' : ''}">
+            <div class="conversation-avatar">
+              ${conv.otherUser.profilePicture ? 
+                `<img src="${conv.otherUser.profilePicture}" alt="Profile Picture">` :
+                `<div class="default-avatar">${conv.otherUser.firstName[0]}${conv.otherUser.lastName[0]}</div>`
+              }
+            </div>
+            <div class="conversation-content">
+              <div class="conversation-header">
+                <h3>${conv.otherUser.firstName} ${conv.otherUser.lastName}</h3>
+                ${conv.lastMessage ? 
+                  `<span class="conversation-time">${new Date(conv.lastMessage.createdAt).toLocaleString()}</span>` :
+                  ''
+                }
+              </div>
+              <div class="conversation-preview">
+                ${conv.lastMessage ? 
+                  `<p>${conv.lastMessage.content}</p>
+                   ${conv.unreadCount > 0 ? `<span class="unread-badge">${conv.unreadCount}</span>` : ''}` :
+                  '<p class="no-messages">No messages yet - Click to start chatting!</p>'
+                }
+              </div>
+            </div>
+          </a>
+        `).join('');
+      }
+    } catch (error) {
+      console.error('Messages error:', error);
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+    }
+  });
+</script>
+
+<style>
+  .messages-section {
+    padding: 2rem 0;
+  }
+  
+  .conversations-list {
+    background: var(--bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  
+  .conversation-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    text-decoration: none;
+    color: var(--text-color);
+    transition: background-color 0.2s;
+  }
+  
+  .conversation-item:hover {
+    background-color: var(--light-bg);
+  }
+  
+  .conversation-item.unread {
+    background-color: rgba(52, 152, 219, 0.1);
+  }
+  
+  .conversation-avatar {
+    width: 50px;
+    height: 50px;
+    margin-right: 1rem;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+  
+  .conversation-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .conversation-content {
+    flex: 1;
+  }
+  
+  .conversation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+  
+  .conversation-header h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+  
+  .conversation-time {
+    font-size: 0.8rem;
+    color: #666;
+  }
+  
+  .conversation-preview {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .conversation-preview p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80%;
+  }
+  
+  .unread-badge {
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    min-width: 20px;
+    text-align: center;
+  }
+  
+  .no-messages {
+    color: #666;
+    font-style: italic;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #666;
+  }
+  
+  .empty-state p {
+    margin: 0;
+    margin-bottom: 0.5rem;
+  }
+
+  .default-avatar {
+    width: 100%;
+    height: 100%;
+    background-color: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+  }
+</style>
+
+<%- include('../partials/footer') %> 

@@ -1,0 +1,302 @@
+<%- include('../partials/header') %>
+
+<section class="profile-setup-section">
+  <div class="container">
+    <div class="auth-container">
+      <h1 class="auth-title">Complete Your Profile</h1>
+      <p class="setup-intro">Let's set up your profile to help others get to know you better.</p>
+
+      <form id="profile-setup-form" class="auth-form">
+        <div class="form-message" id="setup-message" style="display: none;"></div>
+
+        <!-- Profile Picture Upload -->
+        <div class="profile-picture-section">
+          <div class="profile-picture-preview">
+            <img id="profile-preview" src="/images/default-avatar.png" alt="Profile Picture">
+          </div>
+          <div class="profile-picture-upload">
+            <label for="profile-picture" class="btn btn-secondary">
+              <i class="fas fa-camera"></i> Choose Profile Picture
+            </label>
+            <input type="file" id="profile-picture" name="profilePicture" accept="image/*" style="display: none;">
+            <p class="upload-hint">Maximum file size: 5MB. Supported formats: JPG, PNG</p>
+          </div>
+        </div>
+
+        <!-- Bio -->
+        <div class="form-group">
+          <label for="bio">About Me</label>
+          <textarea id="bio" name="bio" rows="4" placeholder="Tell us about yourself, your interests, and what you hope to achieve..."></textarea>
+          <p class="char-count"><span id="bio-char-count">0</span>/500 characters</p>
+        </div>
+
+        <!-- Additional Fields -->
+        <div class="form-group">
+          <label for="interests">Interests/Subjects</label>
+          <input type="text" id="interests" name="interests" placeholder="e.g., Mathematics, Science, Literature">
+        </div>
+
+        <!-- Experience Level (Tutors Only) -->
+        <div class="form-group" id="experience-group" style="display: none;">
+          <label for="experience">Experience Level</label>
+          <select id="experience" name="experience">
+            <option value="">Select your experience level</option>
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <button type="submit" class="btn btn-primary btn-block">Complete Profile Setup</button>
+        </div>
+
+        <div class="form-group">
+          <button type="button" id="skip-setup" class="btn btn-link">Skip for now</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  
+  if (!token || !user) {
+    window.location.href = '/login';
+    return;
+  }
+
+  // Show experience field only for tutors
+  const experienceGroup = document.getElementById('experience-group');
+  if (user.role === 'tutor') {
+    experienceGroup.style.display = 'block';
+  }
+
+  const form = document.getElementById('profile-setup-form');
+  const messageEl = document.getElementById('setup-message');
+  const profileInput = document.getElementById('profile-picture');
+  const profilePreview = document.getElementById('profile-preview');
+  const bioInput = document.getElementById('bio');
+  const bioCharCount = document.getElementById('bio-char-count');
+  const skipSetupBtn = document.getElementById('skip-setup');
+  const interestsInput = document.getElementById('interests');
+  const experienceInput = document.getElementById('experience');
+
+  // Load current user data
+  try {
+    const response = await fetch('/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to load user data');
+    }
+    
+    const userData = await response.json();
+    const currentUser = userData.user;
+    
+    // Populate form with current user data
+    if (currentUser.profilePicture) {
+      profilePreview.src = currentUser.profilePicture;
+    }
+    if (currentUser.bio) {
+      bioInput.value = currentUser.bio;
+      bioCharCount.textContent = currentUser.bio.length;
+    }
+    if (currentUser.interests) {
+      interestsInput.value = currentUser.interests;
+    }
+    if (currentUser.experience && user.role === 'tutor') {
+      experienceInput.value = currentUser.experience;
+    }
+  } catch (error) {
+    console.error('Failed to load user data:', error);
+    messageEl.textContent = 'Failed to load your profile data. You can still update your profile.';
+    messageEl.className = 'form-message error';
+    messageEl.style.display = 'block';
+  }
+
+  // Profile picture preview
+  profileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      profileInput.value = '';
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file');
+      profileInput.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      profilePreview.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Bio character count
+  bioInput.addEventListener('input', () => {
+    const count = bioInput.value.length;
+    bioCharCount.textContent = count;
+    
+    if (count > 500) {
+      bioInput.value = bioInput.value.substring(0, 500);
+      bioCharCount.textContent = 500;
+    }
+  });
+
+  // Form submission
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData();
+    if (profileInput.files[0]) {
+      formData.append('profilePicture', profileInput.files[0]);
+    }
+    formData.append('bio', bioInput.value);
+    formData.append('interests', document.getElementById('interests').value);
+    
+    // Only include experience for tutors
+    if (user.role === 'tutor') {
+      formData.append('experience', document.getElementById('experience').value);
+    }
+
+    try {
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      // Update local storage with new user data
+      const data = await response.json();
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      // Show success message
+      messageEl.textContent = 'Profile updated successfully!';
+      messageEl.className = 'form-message success';
+      messageEl.style.display = 'block';
+
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1500);
+    } catch (error) {
+      console.error('Profile setup error:', error);
+      messageEl.textContent = 'Failed to update profile. Please try again.';
+      messageEl.className = 'form-message error';
+      messageEl.style.display = 'block';
+    }
+  });
+
+  // Skip setup
+  skipSetupBtn.addEventListener('click', () => {
+    window.location.href = '/dashboard';
+  });
+});
+</script>
+
+<style>
+.profile-setup-section {
+  padding: 2rem 0;
+}
+
+.setup-intro {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #666;
+}
+
+.profile-picture-section {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.profile-picture-preview {
+  width: 150px;
+  height: 150px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--primary-color);
+}
+
+.profile-picture-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-picture-upload {
+  margin-bottom: 1rem;
+}
+
+.upload-hint {
+  font-size: 0.875rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.char-count {
+  text-align: right;
+  font-size: 0.875rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+.form-message {
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  margin-bottom: 1rem;
+}
+
+.form-message.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.form-message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  text-decoration: underline;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+}
+
+.btn-link:hover {
+  text-decoration: none;
+}
+</style>
+
+<%- include('../partials/footer') %> 

@@ -1,0 +1,291 @@
+<%- include('../partials/header') %>
+
+<section class="invite-section">
+  <div class="container">
+    <div class="auth-container">
+      <h1 class="auth-title">Invite a Pupil</h1>
+      
+      <form id="invite-form" class="auth-form">
+        <div class="form-message" id="invite-message" style="display: none;"></div>
+        
+        <div class="form-group">
+          <label for="email">Pupil's Email</label>
+          <input type="email" id="email" name="email" required>
+        </div>
+        
+        <div class="form-group">
+          <button type="submit" class="btn btn-primary btn-block">Generate Access Code & Send Invitation</button>
+        </div>
+      </form>
+      
+      <div id="invite-result" style="display: none;">
+        <div class="invite-success">
+          <h3>Invitation Created Successfully!</h3>
+          <div class="access-code-display">
+            <p>Access Code: <span id="access-code" class="code"></span></p>
+            <button id="copy-code" class="btn btn-secondary">Copy Code</button>
+          </div>
+          <p class="invite-note">The access code has been sent to the pupil's email address.</p>
+          <p class="invite-note">If email sending is disabled in the system, please share this code with your pupil manually.</p>
+        </div>
+        
+        <div class="auth-links">
+          <a href="/dashboard" class="btn btn-link">Return to Dashboard</a>
+          <button id="invite-another" class="btn btn-link">Invite Another Pupil</button>
+        </div>
+      </div>
+      
+      <div id="past-invites">
+        <h3>Your Generated Access Codes</h3>
+        <div class="loading" id="codes-loading">Loading...</div>
+        <div id="access-codes-list"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    if (!token || !user || (user.role !== 'tutor' && user.role !== 'admin')) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    const inviteForm = document.getElementById('invite-form');
+    const messageElement = document.getElementById('invite-message');
+    const inviteResult = document.getElementById('invite-result');
+    const accessCodeElement = document.getElementById('access-code');
+    const copyButton = document.getElementById('copy-code');
+    const inviteAnotherButton = document.getElementById('invite-another');
+    
+    // Load past access codes
+    loadAccessCodes();
+    
+    // Handle form submission
+    inviteForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value;
+      
+      try {
+        // Clear previous messages
+        messageElement.style.display = 'none';
+        
+        const response = await fetch('/api/users/access-code', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            email,
+            role: 'pupil' // Always create pupil access codes from this form
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to create access code');
+        }
+        
+        // Show the result section
+        inviteForm.style.display = 'none';
+        inviteResult.style.display = 'block';
+        
+        // Display the access code
+        accessCodeElement.textContent = data.accessCode.code;
+        
+        // Reload access codes list
+        loadAccessCodes();
+        
+      } catch (error) {
+        // Show error message
+        messageElement.textContent = error.message;
+        messageElement.className = 'form-message error';
+        messageElement.style.display = 'block';
+      }
+    });
+    
+    // Copy access code to clipboard
+    copyButton.addEventListener('click', () => {
+      const codeText = accessCodeElement.textContent;
+      navigator.clipboard.writeText(codeText).then(() => {
+        copyButton.textContent = 'Copied!';
+        setTimeout(() => {
+          copyButton.textContent = 'Copy Code';
+        }, 2000);
+      });
+    });
+    
+    // Invite another pupil
+    inviteAnotherButton.addEventListener('click', () => {
+      inviteForm.reset();
+      inviteForm.style.display = 'block';
+      inviteResult.style.display = 'none';
+    });
+    
+    // Load access codes created by the current user
+    async function loadAccessCodes() {
+      const codesLoading = document.getElementById('codes-loading');
+      const codesListElement = document.getElementById('access-codes-list');
+      
+      try {
+        codesLoading.style.display = 'block';
+        
+        const response = await fetch('/api/users/access-code/mine', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to load access codes');
+        }
+        
+        const data = await response.json();
+        const accessCodes = data.accessCodes || [];
+        
+        codesLoading.style.display = 'none';
+        
+        if (accessCodes.length === 0) {
+          codesListElement.innerHTML = '<p>You have not created any access codes yet.</p>';
+          return;
+        }
+        
+        // Sort by creation date (newest first)
+        accessCodes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        // Display the codes in a table
+        codesListElement.innerHTML = `
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Role</th>
+                <th>Created</th>
+                <th>Status</th>
+                <th>Expires</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${accessCodes.map(code => `
+                <tr>
+                  <td><code>${code.code}</code></td>
+                  <td>${code.targetRole}</td>
+                  <td>${new Date(code.createdAt).toLocaleDateString()}</td>
+                  <td>${code.used ? 'Used' : 'Available'}</td>
+                  <td>${new Date(code.expiresAt).toLocaleDateString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (error) {
+        console.error('Load access codes error:', error);
+        codesLoading.style.display = 'none';
+        codesListElement.innerHTML = '<p class="error">Failed to load access codes.</p>';
+      }
+    }
+  });
+</script>
+
+<style>
+  .invite-section {
+    padding: 2rem 0;
+  }
+  
+  .invite-success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 1.5rem;
+  }
+  
+  .access-code-display {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    margin: 1rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .code {
+    font-family: monospace;
+    font-size: 1.5rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+  }
+  
+  .invite-note {
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+  
+  #past-invites {
+    margin-top: 2.5rem;
+  }
+  
+  #past-invites h3 {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .loading {
+    text-align: center;
+    padding: 1rem;
+    color: #6c757d;
+  }
+  
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+  }
+  
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .data-table th {
+    font-weight: 600;
+    background-color: var(--light-bg);
+  }
+  
+  code {
+    background-color: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.2rem;
+    font-family: monospace;
+  }
+  
+  .btn-link {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    font-size: 1rem;
+  }
+  
+  .auth-links {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1.5rem;
+  }
+</style>
+
+<%- include('../partials/footer') %> 

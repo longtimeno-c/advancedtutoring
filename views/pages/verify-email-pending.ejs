@@ -1,0 +1,23 @@
+<%- include('../partials/header') %>
+
+<section class="auth-section">
+  <div class="auth-container">
+    <h1 class="auth-title">Verify Your Email</h1>
+    <div class="form-message success" id="verification-pending">
+      <p>We've sent a verification email to your inbox.</p>
+      <p>Please check your email and click on the verification link to complete your registration.</p>
+      <p>If you don't see the email, check your spam folder.</p>
+    </div>
+    
+    <div class="email-notice">
+      <p>Note: If email verification is disabled in the system, your account may be automatically verified.</p>
+      <p>Try <a href="/login">logging in</a> to check your status.</p>
+    </div>
+    
+    <div class="auth-links">
+      <a href="/" class="btn btn-secondary">Return to Home</a>
+    </div>
+  </div>
+</section>
+
+<%- include('../partials/footer') %> 

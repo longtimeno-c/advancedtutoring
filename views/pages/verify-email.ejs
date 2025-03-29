@@ -1,0 +1,63 @@
+<%- include('../partials/header') %>
+
+<section class="auth-section">
+  <div class="auth-container">
+    <h1 class="auth-title">Verify Your Email</h1>
+    <div class="form-message" id="verification-message">
+      <p>We're verifying your email. Please wait...</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    const messageElement = document.getElementById('verification-message');
+    const token = '<%= token %>';
+    
+    if (!token) {
+      messageElement.innerHTML = `
+        <p class="error">No verification token provided. Please check your email for the verification link.</p>
+      `;
+      messageElement.className = 'form-message error';
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/auth/verify-email?token=${token}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Verification failed');
+      }
+      
+      // After successful verification
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Show success message and redirect to profile setup
+      messageElement.textContent = 'Email verified successfully! Redirecting to profile setup...';
+      messageElement.className = 'verification-message success';
+      messageElement.style.display = 'block';
+      
+      setTimeout(() => {
+        window.location.href = '/profile-setup';
+      }, 1500);
+      
+    } catch (error) {
+      // Error message
+      messageElement.innerHTML = `
+        <p>${error.message}</p>
+        <p>Please try again or contact support.</p>
+      `;
+      messageElement.className = 'form-message error';
+    }
+  });
+</script>
+
+<%- include('../partials/footer') %> 

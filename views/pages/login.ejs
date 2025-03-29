@@ -1,0 +1,80 @@
+<%- include('../partials/header') %>
+
+<section class="auth-section">
+  <div class="auth-container">
+    <h1 class="auth-title">Login</h1>
+    <form id="login-form" class="auth-form">
+      <div class="form-message" id="login-message" style="display: none;"></div>
+      
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      
+      <div class="form-group">
+        <button type="submit" class="btn btn-primary btn-block">Login</button>
+      </div>
+      
+      <div class="auth-links">
+        <p>Don't have an account? <a href="/register">Register</a></p>
+      </div>
+    </form>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const loginForm = document.getElementById('login-form');
+    const messageElement = document.getElementById('login-message');
+    
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Login failed');
+        }
+        
+        // Store user data and token in localStorage
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Show success message
+        messageElement.textContent = 'Login successful! Redirecting...';
+        messageElement.className = 'form-message success';
+        messageElement.style.display = 'block';
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 1000);
+        
+      } catch (error) {
+        // Show error message
+        messageElement.textContent = error.message;
+        messageElement.className = 'form-message error';
+        messageElement.style.display = 'block';
+      }
+    });
+  });
+</script>
+
+<%- include('../partials/footer') %> 
